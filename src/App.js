@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-  import { LogOut, UserPlus, Trash2, Users } from 'lucide-react';
+// Thêm FileDown vào đây
+import { LogOut, UserPlus, Trash2, Users, FileDown } from 'lucide-react'; 
+// Thêm dòng import XLSX này vào (Rất quan trọng!)
+import * as XLSX from 'xlsx'; 
 
 // THAY LINK NÀY THÀNH LINK HTTPS CỦA HÀO TRÊN TAB PORTS (PORT 5000)
-const API_URL = 'https://hrm-backend-atwj.onrender.com/api/employees'; 
+const API_URL = 'https://sturdy-robot-9597rj9ww9xhpjj6-5000.app.github.dev/api/employees'; 
 
 function App() {
   const [user, setUser] = useState(null); 
@@ -54,6 +56,31 @@ function App() {
       fetchEmployees();
     } catch (err) { alert("Lỗi cập nhật!"); }
   };
+  const exportToExcel = () => {
+    try {
+      // 1. Tạo mảng dữ liệu cho Excel
+      const data = employees.map(emp => {
+        const row = { "Nhân viên": emp.fullName };
+        days.forEach(day => {
+          const shifts = emp.availability?.[day] || [];
+          row[dayLabels[day]] = shifts.join(', ') || 'Trống';
+        });
+        return row;
+      });
+
+      // 2. Tạo worksheet từ mảng dữ liệu
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Lịch Làm Việc");
+
+      // 3. Xuất file
+      XLSX.writeFile(workbook, `Lich_Lam_Viec_${new Date().toLocaleDateString()}.xlsx`);
+      alert("✅ Đã xuất file Excel thành công!");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Lỗi khi xuất file Excel!");
+    }
+  };
 
   const deleteEmployee = async (id) => {
     if (user.role !== 'Admin') return alert("Chỉ Admin mới được xóa!");
@@ -62,6 +89,28 @@ function App() {
         await axios.delete(`${API_URL}/delete/${id}`);
         fetchEmployees();
       } catch (err) { alert("Lỗi xóa!"); }
+    }
+  };
+  const clearAllAvailability = async () => {
+    if (!window.confirm("⚠️ CẢNH BÁO: Hành động này sẽ XÓA SẠCH toàn bộ lịch làm việc của TẤT CẢ nhân viên. Hào có chắc chắn muốn làm điều này không?")) {
+      return;
+    }
+
+    try {
+      // Tạo mảng các Promise để xóa tất cả cùng lúc cho nhanh
+      const clearPromises = employees.map(emp => {
+        const emptyAvailability = {
+          monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
+        };
+        return axios.put(`${API_URL}/update-availability/${emp._id}`, { availability: emptyAvailability });
+      });
+
+      await Promise.all(clearPromises);
+      fetchEmployees(); // Cập nhật lại danh sách sau khi xóa
+      alert("✅ Đã xóa sạch lịch làm việc của toàn bộ thành viên!");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Lỗi khi xóa toàn bộ lịch!");
     }
   };
 
@@ -103,50 +152,63 @@ function App() {
               <input type="password" placeholder="Mật khẩu" className="px-4 py-2 border rounded-lg outline-none" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required />
               <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2">
                 <UserPlus size={18} /> Thêm
+                <button onClick={exportToExcel} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-all flex items-center gap-2">
+                <FileDown size={18} /> Xuất Excel
+                <button onClick={clearAllAvailability} className="bg-red-100 text-red-600 px-6 py-2 rounded-lg hover:bg-red-200 transition-all flex items-center gap-2 border border-red-300">
+              <Trash2 size={18} /> Xóa toàn bộ ca
+              </button>
+              </button>
               </button>
             </form>
           </div>
         )}
+        {/* Lớp vỏ ngoài cùng để bo góc và đổ bóng */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full text-center">
-            <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold">
-              <tr>
-                <th className="p-4 text-left">Nhân Viên</th>
-                {days.map(day => <th key={day} className="p-4">{dayLabels[day]}</th>)}
-                {user.role === 'Admin' && <th className="p-4">Hành Động</th>}
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {employees.map(emp => (
-                <tr key={emp._id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="p-4 text-left font-medium text-slate-700">{emp.fullName}</td>
-                  {days.map(day => (
-                    <td key={day} className="p-2 border-l border-slate-50">
-                      <div className="flex flex-col gap-1">
-                        {shifts.map(shift => (
-                          <label key={shift} className={`flex items-center gap-2 cursor-pointer text-[11px] transition-colors ${user.id === emp._id || user.role === 'Admin' ? 'text-slate-500 hover:text-blue-600' : 'text-slate-300'}`}>
-                            <input 
-                              type="checkbox" 
-                              checked={emp.availability?.[day]?.includes(shift) || false} 
-                              onChange={(e) => handleShiftChange(emp._id, day, shift)}
-                              disabled={user.role !== 'Admin' && user.id !== emp._id}
-                            /> {shift}
-                          </label>
-                        ))}
-                      </div>
-                    </td>
+  
+  {/* LỚP VỎ MỚI: Cho phép vuốt ngang (Horizontal Scroll) */}
+        <div className="overflow-x-auto"> 
+    
+      <table className="w-full text-center min-w-[800px]"> {/* Thêm min-w-[800px] để bảng không bị co quá mức */}
+        <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold">
+          <tr>
+          <th className="p-4 text-left sticky left-0 bg-slate-100 z-10">Nhân Viên</th> {/* Cố định cột tên nhân viên */}
+          {days.map(day => <th key={day} className="p-4">{dayLabels[day]}</th>)}
+          {user.role === 'Admin' && <th className="p-4">Hành Động</th>}
+          </tr>
+        </thead>
+        <tbody className="text-sm">
+        {employees.map(emp => (
+          <tr key={emp._id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+            <td className="p-4 text-left font-medium text-slate-700 sticky left-0 bg-white z-10">{emp.fullName}</td> {/* Cố định tên khi vuốt */}
+            {days.map(day => (
+              <td key={day} className="p-2 border-l border-slate-50">
+                <div className="flex flex-col gap-1">
+                  {shifts.map(shift => (
+                    <label key={shift} className={`flex items-center gap-2 cursor-pointer text-[11px] transition-colors ${user.id === emp._id || user.role === 'Admin' ? 'text-slate-500 hover:text-blue-600' : 'text-slate-300'}`}>
+                      <input 
+                        type="checkbox" 
+                        checked={emp.availability?.[day]?.includes(shift) || false} 
+                        onChange={(e) => handleShiftChange(emp._id, day, shift)}
+                        disabled={user.role !== 'Admin' && user.id !== emp._id}
+                      /> {shift}
+                    </label>
                   ))}
-                  {user.role === 'Admin' && (
-                    <td className="p-4">
-                      <button onClick={() => deleteEmployee(emp._id)} className="text-red-400 hover:text-red-600 p-2"><Trash2 size={18} /></button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </div>
+              </td>
+            ))}
+            {user.role === 'Admin' && (
+              <td className="p-4">
+                <button onClick={() => deleteEmployee(emp._id)} className="text-red-400 hover:text-red-600 p-2"><Trash2 size={18} /></button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+    </div>
+
+          </div>
     </div>
   );
 }
