@@ -6,7 +6,7 @@ import { LogOut, UserPlus, Trash2, Users, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 
 // THAY LINK NÀY THÀNH LINK HTTPS CỦA HÀO TRÊN TAB PORTS (PORT 5000)
-const API_URL = 'site--hrm-backend--qcgl9jmzwsw7.code.run/api/employees'; 
+const API_URL = 'https://site--hrm-backend--qcgl9jmzwsw7.code.run//api/employees'; 
 
 function App() {
   const [user, setUser] = useState(null); 
